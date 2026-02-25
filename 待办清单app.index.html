@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>待办清单Web App</title>
+    <!-- 引入Bootstrap样式，保证按钮/布局正常 -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        /* 简单样式，保证界面美观 */
+        .todo-container {
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            border-radius: 8px;
+        }
+        .todo-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+        }
+        .completed {
+            text-decoration: line-through;
+            color: #999;
+        }
+    </style>
+</head>
+<body>
+    <!-- 核心HTML结构：输入框+列表容器，ID必须和JS里对应 -->
+    <div class="todo-container">
+        <h2 class="text-center mb-4">极简待办清单</h2>
+        <div class="input-group mb-3">
+            <input type="text" id="todoInput" class="form-control" placeholder="输入待办内容...">
+            <button class="btn btn-primary" onclick="addTodo()">添加待办</button>
+        </div>
+        <div id="todoList"></div>
+    </div>
+
+    <!-- 你的JS代码（已整合，保证上下文完整） -->
+    <script>
+        // 后端接口基础地址（与后端运行地址一致）
+        const API_BASE = "https://todo-backend--xfy1161986920.replit.app";
+
+        // 页面加载时，自动拉取后端数据
+        window.onload = getTodos;
+
+        // 1. 获取所有待办（对接后端GET /todos）
+        async function getTodos() {
+            try {
+                const res = await fetch(`${API_BASE}/todos`);
+                // 先判断HTTP状态码是否成功（200-299）
+                if (!res.ok) {
+                    throw new Error("后端连接异常");
+                }
+                const data = await res.json();
+                // 再判断后端业务码是否为200
+                if (data.code === 200) {
+                    renderList(data.data); // 渲染列表
+                } else {
+                    alert("获取待办失败：" + data.message);
+                }
+            } catch (err) {
+                // 只有真的连不上后端时，才弹这个提示
+                alert("⚠️ 请先启动后端服务！");
+                console.error("具体错误：", err);
+            }
+        }
+
+        // 2. 添加待办（对接后端POST /todos）
+        async function addTodo() {
+            const input = document.getElementById("todoInput");
+            const text = input.value.trim();
+            if (!text) { alert("请输入待办内容！"); return; }
+
+            try {
+                const res = await fetch(`${API_BASE}/todos`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ text: text })
+                });
+                const data = await res.json();
+                if (data.code === 200) {
+                    input.value = ""; // 清空输入框
+                    getTodos(); // 重新拉取列表
+                }
+            } catch (err) {
+                alert("添加失败，请检查后端是否运行！");
+            }
+        }
+
+        // 3. 切换完成状态（对接后端PUT /todos/{id}）
+        async function toggleComplete(id) {
+            // 先获取当前状态（从DOM中判断）
+            const item = document.querySelector(`.todo-item[data-id="${id}"]`);
+            const isCompleted = item.classList.contains("completed");
+
+            try {
+                await fetch(`${API_BASE}/todos/${id}`, {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ completed: !isCompleted })
+                });
+                getTodos(); // 重新拉取列表
+            } catch (err) {
+                alert("修改状态失败！");
+            }
+        }
+
+        // 4. 删除待办（对接后端DELETE /todos/{id}）
+        async function deleteTodo(id) {
+            if (!confirm("确定删除吗？")) return;
+
+            try {
+                await fetch(`${API_BASE}/todos/${id}`, { method: "DELETE" });
+                getTodos(); // 重新拉取列表
+            } catch (err) {
+                alert("删除失败！");
+            }
+        }
+
+        // 渲染待办列表（适配后端数据格式）
+        function renderList(todos) {
+            const list = document.getElementById("todoList");
+            list.innerHTML = ""; // 清空列表
+
+            todos.forEach(todo => {
+                const item = document.createElement("div");
+                item.className = `todo-item ${todo.completed ? "completed" : ""}`;
+                item.setAttribute("data-id", todo.id); // 标记ID，用于后续操作
+
+                item.innerHTML = `
+                    <span>${todo.text}</span>
+                    <div>
+                        <button class="btn btn-sm btn-success me-2" onclick="toggleComplete(${todo.id})">
+                            ${todo.completed ? "取消完成" : "标记完成"}
+                        </button>
+                        <button class="btn btn-sm btn-danger" onclick="deleteTodo(${todo.id})">删除</button>
+                    </div>
+                `;
+                list.appendChild(item);
+            });
+        }
+    </script>
+
+    <!-- 引入Bootstrap的JS，保证按钮交互正常 -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
